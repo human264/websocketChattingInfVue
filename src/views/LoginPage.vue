@@ -25,6 +25,7 @@
 <script>
 // import axios from "axios";
 import axios from "axios";
+import {jwtDecode} from "jwt-decode";
 
 export default {
   data() {
@@ -41,6 +42,10 @@ export default {
       }
       const response = await axios.post(`${process.env.VUE_APP_API_BASE_URL}/member/doLogin`, loginData);
       const token = response.data.token;
+      const role = jwtDecode(token).role;
+      const email = jwtDecode(token).sub;
+      localStorage.setItem('role', role);
+      localStorage.setItem('email', email);
       localStorage.setItem('token', token);
       window.location.href = "/";
 
