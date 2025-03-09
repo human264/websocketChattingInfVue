@@ -8,8 +8,8 @@
           <v-card-text>
             <div class="chat-box">
               <div v-for="(msg, index) in  messages" :key="index"
-              :class="['chat-message', msg.senderEmail === this.senderEmail ? 'sent': 'received']">
-                <strong>{{ msg.senderEmail }} </strong> {{ msg.message}}
+                   :class="['chat-message', msg.senderEmail === this.senderEmail ? 'sent': 'received']">
+                <strong>{{ msg.senderEmail }} </strong> {{ msg.message }}
               </div>
             </div>
             <v-text-field
@@ -30,6 +30,7 @@
 <script>
 import SockJs from "sockjs-client";
 import Stomp from "webstomp-client";
+import axios from "axios";
 // import axios from "axios";
 
 export default {
@@ -41,11 +42,18 @@ export default {
       stompClient: null,
       token: "",
       senderEmail: null,
+      roomId: null,
     }
   },
-  created() {
+  async created() {
     this.senderEmail = localStorage.getItem('email');
+    this.roomId = this.$route.params.roomId;
+
+    const response = await axios.get(`${process.env.VUE_APP_API_BASE_URL}/chat/history/${this.roomId}`);
+    this.messages = response.data;
+
     this.connectWebSocket();
+
   },
 
   //사용자가 현재 라우트에서 다른 라우트로 이동 하려고 할때 호출되는 함수
@@ -54,13 +62,14 @@ export default {
     next();
   },
 
+  //사용자가 현재 라우트에서 다른 라우트로 이동 하려고 할때 호출되는 함수
   beforeUnmount() {
     this.disconnectWebSocket();
   },
 
   methods: {
     connectWebSocket() {
-      if(this.stompClient && this.stompClient.connected) {
+      if (this.stompClient && this.stompClient.connected) {
         return;
       }
 
@@ -71,11 +80,13 @@ export default {
             Authorization: `Bearer ${this.token}`
           },
           () => {
-            this.stompClient.subscribe(`/topic/1`, (message) => {
+            this.stompClient.subscribe(`/topic/${this.roomId}`, (message) => {
                   console.log(message)
                   const parsedMessage = JSON.parse(message.body)
                   this.messages.push(parsedMessage);
                   this.scrollTOBottom();
+                }, {
+                  Authorization: `Bearer ${this.token}`
                 }
             )
           }
@@ -87,7 +98,7 @@ export default {
         senderEmail: this.senderEmail,
         message: this.newMessage,
       }
-      this.stompClient.send(`/publish/1`, JSON.stringify(message));
+      this.stompClient.send(`/publish/${this.roomId}`, JSON.stringify(message));
       this.newMessage = "";
     },
 
@@ -97,12 +108,12 @@ export default {
         chatBox.scrollTop = chatBox.scrollHeight;
       })
     },
-    disconnectWebSocket() {
+    async disconnectWebSocket() {
+      await axios.post(`${process.env.VUE_APP_API_BASE_URL}/chat/room/${this.roomId}/read`, {});
+
       if (this.stompClient && this.stompClient.connected) {
-        this.stompClient.unsubscribe(`/topic/1`);
+        this.stompClient.unsubscribe(`/topic/${this.roomId}`);
         this.stompClient.disconnect();
-        console.log("disconnected!!");
-        this.stompClient = null;
       }
     },
   }
